@@ -1,53 +1,151 @@
-# Polymarket LIVE Trades Analyzer
+# Polymarket Expert Trader Signal Analyzer
 
-A Python project that analyzes LIVE Polymarket trades across tracked wallet addresses, identifying markets where multiple wallets are actively trading.
+A Python tool that tracks and analyzes positions from elite Polymarket traders, providing high-quality trading signals by filtering out noise and showing only active, meaningful bets.
 
 ## Project Structure
 
 ```
 polymarket/
-├── main.py                          # Entry point
-├── run.py                           # Alternative execution wrapper
-├── config.py                        # Configuration (wallets, API endpoints)
-├── api.py                           # API interaction module
-├── processor.py                     # Data processing and aggregation
-├── analyzer.py                      # Main analysis orchestration
-├── debug.py                         # Debug utilities
+├── main.py                          # Entry point - run the analysis
+├── config.py                        # Configuration (tracked wallets, ratings, thresholds)
+├── api.py                           # Polymarket API interaction
+├── processor.py                     # Trade processing, filtering, and aggregation
+├── analyzer.py                      # Results formatting and display
 ├── requirements.txt                 # Python dependencies
-├── polymarket_trades_analysis.csv   # Output file (generated)
+├── polymarket_trades_analysis.csv   # Output file (auto-generated)
 └── README.md                        # This file
 ```
 
 ## Features
 
-- **Multi-wallet tracking**: Monitor up to 7 wallet addresses simultaneously
-- **LIVE market filtering**: Only analyze unresolved, open markets (resolved=false, closed=false)
-- **Smart aggregation**: Group trades by market and count YES/NO positions per wallet
-- **Minimum wallet threshold**: Display only markets with 2+ tracked wallets
-- **CSV export**: Automatically save results for further analysis
-- **Comprehensive logging**: Track API calls and data processing steps
+### Signal Quality Filters
+- **22 Elite Traders Tracked**: Monitor top-rated traders (ratings 1-10) with proven track records
+- **Time-Based Filtering**: Only show markets with trades in the last 6 hours (configurable)
+- **Minimum Bet Size per Trader**: Filter out small, low-conviction bets (configurable per trader)
+- **Arbitrage Detection**: Remove traders betting on both sides of the same market
+- **Exit Detection**: Filter out positions where traders have sold (bought then sold = no signal)
+- **Active Markets Only**: Automatically exclude resolved or closed markets
+
+### Display Features
+- **Individual Trader Ratings**: See each trader's rating in brackets `[9 8 7]`
+- **Position Sizes**: Total dollar amount invested per outcome
+- **Entry Prices**: Average price at which traders entered their positions
+- **Trader Summary**: Overview of all active traders with total sizes and entry prices
 
 ## Requirements
 
 - Python 3.7+
 - requests (HTTP library)
-- pandas (Data analysis)
+- pandas (Data analysis and CSV export)
 
 ## Installation
 
-1. Clone or download this project
+1. Clone the repository:
+```bash
+git clone https://github.com/jogjerde/polymarket.git
+cd polymarket
+```
+
 2. Install dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
+## Usage
+
+Simply run the main script:
+```bash
+python main.py
+```
+
+The tool will:
+1. Fetch the 100 most recent trades for each of the 22 tracked wallets (2,200 trades total)
+2. Filter to the 600 most recent trades
+3. Apply all quality filters (time, size, arbitrage, exits, etc.)
+4. Display results in the terminal
+5. Export to `polymarket_trades_analysis.csv`
+
+### Example Output
+
+```
+====================================================================================================
+TRADER SUMMARY
+====================================================================================================
+                 Trader Rating  Bets Avg Entry Price Total Size
+                    RN1   9/10    78          $0.533 $190259.34
+               IBOV200K   5/10    32          $0.445 $145976.18
+        BigBlackGorilla   8/10    32          $0.567 $111442.60
+                  
+====================================================================================================
+MARKETS
+====================================================================================================
+Market Title                                                    Outcome                            
+----------------------------------------------------------------------------------------------------
+Dota 2: Team Liquid vs Heroic (BO1) - BLAST Slam Group Stage   HEROIC: [8 7 4] $8086 ($0.397)
+Transylvania Open: Anastasia Potapova vs Sorana Cirstea        CIRSTEA: [9] $32379 ($0.640) | POTAPOVA: [2] $200 ($0.001)
+```
+
+**Reading the output:**
+- `[8 7 4]` = Individual trader ratings who bet on this outcome
+- `$8086` = Total dollar amount invested
+- `($0.397)` = Average entry price
+
 ## Configuration
 
-Edit `config.py` to customize:
+Edit `config.py` to customize the behavior:
 
-### Tracked Wallets
+### Key Settings
+
 ```python
+# Tracked wallets (22 elite traders)
 TRACKED_WALLETS = [
+    "0xf5b723a4a8efb369f4db1228eb7ba9279c353e1c",  # RN1
+    "0x2005d16a84ceefa912d4e380cd32e7ff827875ea",  # IBOV200K
+    # ... 20 more
+]
+
+# Trader quality ratings (1-10 scale)
+TRADER_RATINGS = {
+    "RN1": 9,
+    "IBOV200K": 5,
+    "BigBlackGorilla": 8,
+    # ... etc
+}
+
+# Minimum bet size per trader (filters low-conviction bets)
+MIN_BET_SIZE_PER_TRADER = {
+    "RN1": 0,
+    "Trapital": 500,  # High-volume trader, only show large bets
+    # ... etc
+}
+
+# Time window for "active" markets
+MAX_MARKET_AGE_HOURS = 6  # Only show markets with trades in last 6 hours
+
+# Minimum wallets required to display a market
+MIN_WALLETS_PER_MARKET = 2
+
+# Display settings
+SHOW_INDIVIDUAL_RATINGS = True  # Show [7 8 5] format instead of average
+```
+
+### Advanced Filtering
+
+The tool automatically applies several filters to ensure signal quality:
+
+1. **Time Filter**: Markets must have trades within `MAX_MARKET_AGE_HOURS`
+2. **Size Filter**: Each trader's bet must exceed their `MIN_BET_SIZE_PER_TRADER` threshold
+3. **Arbitrage Filter**: Removes traders betting on multiple outcomes in the same market
+4. **Exit Filter**: Removes traders who have both BUY and SELL trades (closed position)
+5. **Market State Filter**: Only shows open, unresolved markets from trade metadata
+
+### Performance Settings
+
+```python
+# Disable slow external checks (enabled by default for speed)
+CHECK_LIVE_STATUS = False        # Skip HTTP requests to polymarket.com
+CHECK_EXTERNAL_RESULTS = False   # Skip external result verification
+```
     "0xb30fe15964655f469c29a0b7b7a7305ff02a9505",
     # Add/remove wallet addresses as needed
 ]
@@ -63,120 +161,77 @@ MIN_WALLETS_PER_MARKET = 2  # Only show markets with 2+ wallets
 OUTPUT_CSV = "polymarket_trades_analysis.csv"  # Output filename
 ```
 
-## Usage
-
-### Quick Start
-```bash
-python main.py
-```
-
-### With Custom Script
-```bash
-python run.py
-```
-
-### Output
-
-The analyzer produces:
-1. **Console output**: Formatted DataFrame with results
-2. **CSV file**: `polymarket_trades_analysis.csv` with all results
-
-## Output Columns
-
-| Column | Description |
-|--------|-------------|
-| Market Title | Human-readable market name |
-| Market ID | Polymarket condition ID (unique identifier) |
-| YES Count | Number of tracked wallets with YES positions |
-| NO Count | Number of tracked wallets with NO positions |
-| Total Wallets | Total unique wallets involved in market |
-
-## Example Output
-
-```
-Market Title                                     Market ID                                       YES Count  NO Count  Total Wallets
-No change in Fed interest rates after May 2025   0xffffb2874475ae9c1e3a0e3c3c4b4e329...          3          0          3
-Will Zelenskyy wear a suit before July?          0x655e5ca101c466b6293aa15e06173b78...          0          3          3
-Will Mark Carney be next Canadian PM?            0x87822b3d4ccba1835d698354b01c050...          3          0          3
-```
-
-## API Data Source
-
-All data is fetched from the public Polymarket API (no authentication required):
-
-- **Trades API**: `GET https://data-api.polymarket.com/trades?user=WALLET_ADDRESS`
-  - Returns up to 100 recent trades per wallet
-  - Includes market metadata, outcomes, and trade details
-
 ## How It Works
 
-### Algorithm
+### Data Pipeline
 
-1. **Fetch Trades**: Retrieve all recent trades for each tracked wallet
-2. **Extract Markets**: Identify unique markets from the trades
-3. **Filter LIVE Markets**: Keep only markets where:
-   - `resolved == false` (outcome not yet determined)
-   - `closed == false` (market still accepting trades)
-4. **Group by Market**: Aggregate trades by market ID
-5. **Count Positions**: Tally YES/NO positions per wallet
-6. **Filter by Wallets**: Show only markets with ≥2 wallets involved
-7. **Sort & Export**: Sort by total wallets and export to CSV
+1. **Fetch Trades**: Retrieves 100 most recent trades for each tracked wallet via Polymarket API
+2. **Time Filter**: Keeps only the 600 most recent trades across all wallets
+3. **Market Extraction**: Groups trades by `condition_id` (unique market identifier)
+4. **Initial Filtering**: Removes resolved/closed markets based on trade metadata
+5. **Aggregation**: Groups by market, tracks traders per outcome with sizes and prices
+6. **Quality Filters**:
+   - Minimum wallet count (default: 2+ traders per market)
+   - Minimum bet size per trader (configurable per trader)
+   - Arbitrage removal (traders on both sides)
+   - Exit detection (traders with BUY + SELL)
+   - Time-based filtering (last 6 hours)
+7. **Format & Display**: Shows results with ratings, sizes, and entry prices
 
-### Data Fields Used
+### Signal Quality Philosophy
 
-From each trade record:
-- `conditionId`: Unique market identifier
-- `outcome`: "Yes" or "No" (user's position)
-- `title`: Human-readable market name
-- `resolved`: Whether market outcome is determined
-- `closed`: Whether market accepts new trades
+The tool is designed to show only **high-conviction, active positions** from elite traders:
+
+- **No small bets**: Filter out "test" bets or low-conviction positions
+- **No arbitrage**: Traders betting both sides provide no directional signal
+- **No exits**: Closed positions mean the trader changed their mind
+- **Recent only**: Old trades may be stale as market conditions change
+- **Rated traders**: 1-10 scale helps weight signal quality
+
+## Output Files
+
+- **Console**: Formatted tables with trader summary and markets
+- **CSV**: `polymarket_trades_analysis.csv` with all market data for further analysis
+
+## Performance
+
+- Runtime: ~5-6 seconds for 22 wallets
+- API calls: 22 wallet fetches (100 trades each) = 2,200 trades fetched
+- Processing: Filters down to ~10-20 high-quality active markets
+
+## Troubleshooting
+
+### "No markets found"
+- Check `MAX_MARKET_AGE_HOURS` - might be too restrictive
+- Verify traders are active (check their recent trades manually)
+- Lower `MIN_BET_SIZE_PER_TRADER` thresholds if too strict
+
+### Slow performance
+- Ensure `CHECK_LIVE_STATUS = False` and `CHECK_EXTERNAL_RESULTS = False`
+- These add HTTP requests which slow down significantly
+
+### Missing traders in output
+- Check `MIN_BET_SIZE_PER_TRADER` - their bets might be filtered
+- Verify they haven't exited positions (BUY + SELL on same market)
+- Check if they're betting on both sides (arbitrage filter)
+
+## License
+
+MIT
+
+## Contributing
+
+Feel free to submit issues or pull requests for improvements!
 
 ## Limitations
 
 - Trades API returns latest ~100 trades per wallet (not paginated)
 - No category filtering applied
-- Markets are determined by conditions found in trade history
-- Focuses on accuracy over trading strategy insights
-
-## Troubleshooting
-
-### No LIVE Markets Found
-- Check that wallet addresses in `config.py` are correct
-- Verify wallets have recent trading activity
-- Confirm internet connection to Polymarket API
-
-### ImportError for pandas/requests
-```bash
-pip install -r requirements.txt
-```
-
-### Empty Results
-- May indicate no current LIVE markets match the criteria
-- Try reducing `MIN_WALLETS_PER_MARKET` in config.py
-- Check that tracked wallets are actively trading
-
-## Performance Notes
-
-- API calls are rate-limited (no explicit limits documented by Polymarket)
-- Typical execution time: 5-10 seconds for 7 wallets
-- Memory usage: Minimal (~50MB for 700 trades)
-
-## Notes
-
-- No category filtering - analyzes all available markets
-- Focus on data fetching accuracy and grouping logic
-- Trades data is real-time from Polymarket API
-- No local caching or persistence (fresh data on each run)
-- CSV format is compatible with Excel, Google Sheets, and other tools
-
 ## License
 
-This project is provided as-is for analysis purposes.
+MIT
 
-## Support
+## Contributing
 
-For questions about:
-- **Polymarket API**: See [Polymarket Documentation](https://polymarket.com)
-- **Code modifications**: Review the module docstrings
-- **Data interpretation**: Check the output column descriptions above
+Feel free to submit issues or pull requests for improvements!
 
