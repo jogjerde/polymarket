@@ -2,10 +2,14 @@
 
 import sys
 import pandas as pd
-from config import TRACKED_WALLETS, OUTPUT_CSV, MIN_WALLETS_PER_MARKET, TRADER_RATINGS
+from config import (
+    TRACKED_WALLETS, OUTPUT_CSV, MIN_WALLETS_PER_MARKET, TRADER_RATINGS,
+    TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, ENABLE_TELEGRAM_NOTIFICATIONS
+)
 from api import PolymarketAPI
 from processor import TradeProcessor
 from analyzer import PolymarketAnalyzer
+from notifier import TelegramNotifier
 import logging
 
 logging.basicConfig(
@@ -109,8 +113,18 @@ def main():
             # Export to CSV
             analyzer.export_csv(results_df, OUTPUT_CSV)
             print(f"\nCSV exported to: {OUTPUT_CSV}")
+            
+            # Send Telegram notification with top 4 markets
+            if ENABLE_TELEGRAM_NOTIFICATIONS:
+                notifier = TelegramNotifier(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID)
+                notifier.send_top_markets(results_df, top_n=4)
         else:
             print("\nNo LIVE markets found matching criteria.")
+            
+            # Notify about no results
+            if ENABLE_TELEGRAM_NOTIFICATIONS:
+                notifier = TelegramNotifier(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID)
+                notifier.send_message("⚠️ Ingen markets funnet i denne kjøringen.")
         
         api.close()
         logger.info("Analysis completed successfully")

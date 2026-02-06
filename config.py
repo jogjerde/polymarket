@@ -108,3 +108,10 @@ MIN_BET_SIZE_PER_TRADER = {
 # If True, show individual MMR ratings for each trader and total $ per outcome
 # If False, show average MMR
 SHOW_INDIVIDUAL_RATINGS = True
+
+# Telegram notification settings
+# Get bot token from @BotFather on Telegram
+# Get chat ID by messaging @userinfobot on Telegram
+TELEGRAM_BOT_TOKEN = "8395273058:AAGEGxcT03W80zL5rMjshMXP2NH-AAaJcto"
+TELEGRAM_CHAT_ID = "8509374331"
+ENABLE_TELEGRAM_NOTIFICATIONS = True
