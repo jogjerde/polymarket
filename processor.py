@@ -461,26 +461,26 @@ class TradeProcessor:
     ) -> Dict[str, Dict[str, Any]]:
         """
         Keep only markets where one outcome has at least threshold% of votes.
-        Hedgers (wallets on multiple outcomes) count as negative votes for the majority.
+        Uses currently filtered traders (from outcome_traders_detailed).
         """
         filtered = {}
         for market_id, data in market_data.items():
-            wallet_outcomes = data.get("wallet_outcomes", {})
             outcome_traders = data.get("outcome_traders_detailed", {})
             
-            if not outcome_traders or not wallet_outcomes:
+            if not outcome_traders:
                 continue
             
             # Count traders per outcome
             outcome_counts = {}
             for outcome, traders_dict in outcome_traders.items():
                 outcome_counts[outcome] = len(traders_dict)
-            
-            # Count hedgers (wallets with multiple outcomes)
-            hedgers = sum(1 for outcomes in wallet_outcomes.values() if len(outcomes) > 1)
-            
-            # Total votes = all wallets
-            total_votes = len(wallet_outcomes)
+
+            # Total votes = unique traders still present after filtering
+            total_votes = len({
+                trader_name
+                for traders_dict in outcome_traders.values()
+                for trader_name in traders_dict.keys()
+            })
             
             if total_votes == 0:
                 continue
@@ -496,7 +496,7 @@ class TradeProcessor:
             # Keep market if majority exceeds threshold
             if majority_pct >= threshold:
                 filtered[market_id] = data
-                logger.debug(f"✓ {market_id}: {max_votes}/{total_votes} ({majority_pct:.1%}) with {hedgers} hedgers")
+                logger.debug(f"✓ {market_id}: {max_votes}/{total_votes} ({majority_pct:.1%})")
             else:
                 logger.debug(f"✗ {market_id}: {max_votes}/{total_votes} ({majority_pct:.1%}) below {threshold:.0%}")
         
@@ -670,13 +670,6 @@ class TradeProcessor:
         if not filtered_data:
             return {}
 
-        # Filter by majority vote (65%+ on one side)
-        # Hedgers are counted in total but not toward the majority
-        filtered_data = self.filter_by_majority_vote(filtered_data, threshold=0.65)
-        if not filtered_data:
-            return {}
-        logger.info(f"{len(filtered_data)} markets remain after majority-vote filtering")
-        
         # Filter by minimum bet size per trader
         filtered_data = self.filter_by_minimum_bet_size(filtered_data)
         if not filtered_data:
@@ -702,6 +695,24 @@ class TradeProcessor:
             logger.info(f"{len(filtered_data)} markets remain after volatility filtering")
             if not filtered_data:
                 return {}
+
+        # Filter by majority vote (65%+ on one side) after all trader-level filters.
+        # This prevents markets that become 1v1 later in the pipeline from slipping through.
+        filtered_data = self.filter_by_majority_vote(filtered_data, threshold=0.65)
+        if not filtered_data:
+            return {}
+        logger.info(f"{len(filtered_data)} markets remain after majority-vote filtering")
+
+        # Refresh total_wallets based on currently surviving traders.
+        # This avoids stale counts from earlier in the pipeline.
+        for _, data in filtered_data.items():
+            outcome_traders = data.get("outcome_traders_detailed", {})
+            unique_traders = {
+                trader_name
+                for traders_dict in outcome_traders.values()
+                for trader_name in traders_dict.keys()
+            }
+            data["total_wallets"] = len(unique_traders)
 
 
         
