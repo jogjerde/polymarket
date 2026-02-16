@@ -24,6 +24,13 @@ TRACKED_WALLETS = [
     "0x9c82c60829df081d593055ee5fa288870c051f13",  # Vetch
     "0x2cad53bb58c266ea91eea0d7ca54303a10bceb66",  # JustBeHappyxd
     "0x18670d5a83b7b38d509398067c095d4c321992ca",  # Trapital
+    "0xac9b386454ed02ef205e0ebd189d8864fd02d4c5",  # tryingmyluckhere
+    "0xbdd2bbcbf179cf9b0062b747fbc17755b9b00bd8",  # abuzzin
+    "0xc20c56eb62bd257d73e0a52e09d7661a11d5fdb5",  # PavMM  (sells early when losing)
+    "0x1e524ff2123d380a690dbdf2245de2a9428e91d6",  # rocky42002
+    "0xd410ddf625bbfc1952eef4c5973b50acd9393a1b",  # Viacheslav92
+    "0x5c85faa9e70e32ee227ce318906f81fc67185cd6",  # shiwanfute
+    "0x95a9ff7399a389428a9a9deb6f416c635d2b4352",  # AtiradorFreestyle
 ]
 
 # Trader ratings (1-10 scale) - used for filtering and display
@@ -50,6 +57,13 @@ TRADER_RATINGS = {
     "Vetch": 6,
     "JustBeHappyxd": 7,
     "Trapital": 5,
+    "tryingmyluckhere": 2,
+    "abuzzin": 5,
+    "PavMM": 1,
+    "rocky42002": 1,
+    "Viacheslav92": 3,
+    "shiwanfute": 2,
+    "AtiradorFreestyle": 1,
 }
 
 # API endpoints
@@ -104,7 +118,26 @@ MIN_BET_SIZE_PER_TRADER = {
     "Vetch": 70,
     "JustBeHappyxd": 200,
     "Trapital": 500,
+    "tryingmyluckhere": 50,
+    "abuzzin": 110,
+    "PavMM": 50,
+    "rocky42002": 50,
+    "Viacheslav92": 50,
+    "shiwanfute": 50,
+    "AtiradorFreestyle": 50,
 }
+
+# Volatility filter: remove markets where traders enter the same outcome
+# at very different prices (example: around 0.50 and 0.20).
+ENABLE_VOLATILITY_FILTER = True
+
+# Maximum allowed spread for prices on the same outcome.
+# If max(price) - min(price) is above this, the market is filtered out.
+MAX_OUTCOME_PRICE_SPREAD = 0.25
+
+# Only evaluate volatility on outcomes that have at least this many prices.
+MIN_PRICES_FOR_VOLATILITY_CHECK = 2
+
 # If True, show individual MMR ratings for each trader and total $ per outcome
 # If False, show average MMR
 SHOW_INDIVIDUAL_RATINGS = True

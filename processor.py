@@ -6,7 +6,17 @@ import logging
 import requests
 import time
 import re
-from config import CHECK_LIVE_STATUS, ONLY_SHOW_MARKET_KEYWORDS, MAX_MARKET_AGE_HOURS, CHECK_EXTERNAL_RESULTS, TRADER_RATINGS, MIN_BET_SIZE_PER_TRADER
+from config import (
+    CHECK_LIVE_STATUS,
+    ONLY_SHOW_MARKET_KEYWORDS,
+    MAX_MARKET_AGE_HOURS,
+    CHECK_EXTERNAL_RESULTS,
+    TRADER_RATINGS,
+    MIN_BET_SIZE_PER_TRADER,
+    ENABLE_VOLATILITY_FILTER,
+    MAX_OUTCOME_PRICE_SPREAD,
+    MIN_PRICES_FOR_VOLATILITY_CHECK,
+)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -66,6 +76,7 @@ class TradeProcessor:
             "slug": "",
             "yes_wallets": [],
             "no_wallets": [],
+            "wallet_outcomes": {},
             "yes_count": 0,
             "no_count": 0,
             "outcome_votes": {},  # Track actual outcomes and their vote counts
@@ -87,6 +98,9 @@ class TradeProcessor:
                 
                 market = live_markets[condition_id]
                 outcome = trade.get("outcome", "").upper()
+                if wallet not in market_data[condition_id]["wallet_outcomes"]:
+                    market_data[condition_id]["wallet_outcomes"][wallet] = set()
+                market_data[condition_id]["wallet_outcomes"][wallet].add(outcome)
                 
                 # Update market data
                 if condition_id not in market_data or not market_data[condition_id]["market_title"]:
@@ -314,6 +328,43 @@ class TradeProcessor:
                 filtered[market_id] = filtered_data
         
         return filtered
+
+    def filter_by_outcome_price_volatility(
+        self,
+        market_data: Dict[str, Dict[str, Any]],
+        max_spread: float,
+        min_prices: int,
+    ) -> Dict[str, Dict[str, Any]]:
+        """
+        Remove markets where at least one outcome has a large entry-price spread.
+
+        This catches fast-moving / highly volatile markets where traders entered
+        at very different prices in a short window.
+        """
+        filtered = {}
+        for market_id, data in market_data.items():
+            outcome_traders = data.get("outcome_traders_detailed", {})
+            is_volatile = False
+
+            for _, traders_dict in outcome_traders.items():
+                prices = [
+                    info.get("price")
+                    for info in traders_dict.values()
+                    if isinstance(info.get("price"), (int, float))
+                ]
+
+                if len(prices) < min_prices:
+                    continue
+
+                spread = max(prices) - min(prices)
+                if spread > max_spread:
+                    is_volatile = True
+                    break
+
+            if not is_volatile:
+                filtered[market_id] = data
+
+        return filtered
     
     def filter_by_minimum_wallets(
         self,
@@ -330,10 +381,124 @@ class TradeProcessor:
         """
         filtered = {}
         for market_id, data in market_data.items():
-            total_wallets = len(set(data["yes_wallets"] + data["no_wallets"]))
+            if data.get("wallet_outcomes"):
+                total_wallets = len(data["wallet_outcomes"].keys())
+            else:
+                total_wallets = len(set(data["yes_wallets"] + data["no_wallets"]))
             if total_wallets >= self.min_wallets:
                 data["total_wallets"] = total_wallets
                 filtered[market_id] = data
+        
+        return filtered
+    
+    def filter_by_minimum_trader_difference(
+        self,
+        market_data: Dict[str, Dict[str, Any]],
+        min_difference: int = 2
+    ) -> Dict[str, Dict[str, Any]]:
+        """
+        Filter markets to only show those where one side has at least min_difference 
+        more traders than the other side (e.g., 2-0, 3-1, 4-2, but not 2-1).
+        
+        Args:
+            market_data: Market data dictionary
+            min_difference: Minimum difference in trader count between sides
+            
+        Returns:
+            Filtered market data
+        """
+        filtered = {}
+        for market_id, data in market_data.items():
+            if "outcome_traders_detailed" not in data:
+                continue
+            
+            traders_by_outcome = data["outcome_traders_detailed"]
+            
+            # Count traders per outcome
+            trader_counts = []
+            for outcome, traders_dict in traders_by_outcome.items():
+                trader_counts.append(len(traders_dict))
+            
+            # Need at least one outcome with traders
+            if not trader_counts:
+                continue
+            
+            # Calculate difference between highest and lowest count
+            if len(trader_counts) == 1:
+                # Only one outcome: difference is the count itself (vs 0)
+                difference = trader_counts[0]
+            else:
+                # Multiple outcomes: difference between max and min
+                difference = max(trader_counts) - min(trader_counts)
+            
+            # Keep market if difference meets minimum requirement
+            if difference >= min_difference:
+                filtered[market_id] = data
+            else:
+                logger.debug(f"Filtered {market_id}: trader difference {difference} < {min_difference}")
+        
+        return filtered
+
+    def filter_markets_with_wallet_hedging(
+        self,
+        market_data: Dict[str, Dict[str, Any]]
+    ) -> Dict[str, Dict[str, Any]]:
+        """
+        Remove markets where any wallet has traded on multiple outcomes.
+        """
+        filtered = {}
+        for market_id, data in market_data.items():
+            wallet_outcomes = data.get("wallet_outcomes", {})
+            has_hedger = any(len(outcomes) > 1 for outcomes in wallet_outcomes.values())
+            if not has_hedger:
+                filtered[market_id] = data
+        return filtered
+
+    def filter_by_majority_vote(
+        self,
+        market_data: Dict[str, Dict[str, Any]],
+        threshold: float = 0.65
+    ) -> Dict[str, Dict[str, Any]]:
+        """
+        Keep only markets where one outcome has at least threshold% of votes.
+        Hedgers (wallets on multiple outcomes) count as negative votes for the majority.
+        """
+        filtered = {}
+        for market_id, data in market_data.items():
+            wallet_outcomes = data.get("wallet_outcomes", {})
+            outcome_traders = data.get("outcome_traders_detailed", {})
+            
+            if not outcome_traders or not wallet_outcomes:
+                continue
+            
+            # Count traders per outcome
+            outcome_counts = {}
+            for outcome, traders_dict in outcome_traders.items():
+                outcome_counts[outcome] = len(traders_dict)
+            
+            # Count hedgers (wallets with multiple outcomes)
+            hedgers = sum(1 for outcomes in wallet_outcomes.values() if len(outcomes) > 1)
+            
+            # Total votes = all wallets
+            total_votes = len(wallet_outcomes)
+            
+            if total_votes == 0:
+                continue
+            
+            # Find outcome with most votes
+            max_outcome = max(outcome_counts.items(), key=lambda x: x[1])
+            max_votes = max_outcome[1]
+            
+            # Calculate majority percentage
+            # Hedgers effectively reduce the majority's strength
+            majority_pct = max_votes / total_votes
+            
+            # Keep market if majority exceeds threshold
+            if majority_pct >= threshold:
+                filtered[market_id] = data
+                logger.debug(f"✓ {market_id}: {max_votes}/{total_votes} ({majority_pct:.1%}) with {hedgers} hedgers")
+            else:
+                logger.debug(f"✗ {market_id}: {max_votes}/{total_votes} ({majority_pct:.1%}) below {threshold:.0%}")
         
         return filtered
     
@@ -439,11 +604,15 @@ class TradeProcessor:
         MIN_BET_SIZE = 10
         all_trades = []
         trader_stats = {}  # Track per-trader stats
+        game_number_pattern = re.compile(r"\bgame\s*\d+\b", re.IGNORECASE)
+        map_number_pattern = re.compile(r"\bmap\s*\d+\b", re.IGNORECASE)
         
         for wallet, trades in wallet_trades.items():
             for trade in trades:
                 # Optionally restrict to markets whose title matches a keyword
                 title = trade.get("title", "").lower()
+                if game_number_pattern.search(title) or map_number_pattern.search(title):
+                    continue
                 if ONLY_SHOW_MARKET_KEYWORDS:
                     if not any(k.lower() in title for k in ONLY_SHOW_MARKET_KEYWORDS):
                         # Skip trades that are not in the requested market categories
@@ -500,6 +669,13 @@ class TradeProcessor:
         filtered_data = self.filter_by_minimum_wallets(market_data)
         if not filtered_data:
             return {}
+
+        # Filter by majority vote (65%+ on one side)
+        # Hedgers are counted in total but not toward the majority
+        filtered_data = self.filter_by_majority_vote(filtered_data, threshold=0.65)
+        if not filtered_data:
+            return {}
+        logger.info(f"{len(filtered_data)} markets remain after majority-vote filtering")
         
         # Filter by minimum bet size per trader
         filtered_data = self.filter_by_minimum_bet_size(filtered_data)
@@ -515,6 +691,19 @@ class TradeProcessor:
         filtered_data = self.filter_traders_with_exits(filtered_data)
         if not filtered_data:
             return {}
+
+        # Remove highly volatile markets based on outcome entry-price spread
+        if ENABLE_VOLATILITY_FILTER:
+            filtered_data = self.filter_by_outcome_price_volatility(
+                filtered_data,
+                max_spread=MAX_OUTCOME_PRICE_SPREAD,
+                min_prices=MIN_PRICES_FOR_VOLATILITY_CHECK,
+            )
+            logger.info(f"{len(filtered_data)} markets remain after volatility filtering")
+            if not filtered_data:
+                return {}
+
+
         
         # Filter by trade age if MAX_MARKET_AGE_HOURS is set
         if MAX_MARKET_AGE_HOURS is not None:
