@@ -22,15 +22,17 @@ def format_outcome_with_individual_ratings(traders_detailed: Dict[str, Dict[str,
     if not traders_detailed:
         return ""
     
-    # Get all ratings as list
+    # Get all ratings as list (include unrated traders as '-')
     ratings = []
     total_size = 0
     prices = []
     
     for trader_name, info in traders_detailed.items():
         rating = info.get("rating")
-        if rating and isinstance(rating, int):
+        if isinstance(rating, int):
             ratings.append(str(rating))
+        else:
+            ratings.append("-")
         size = info.get("size", 0)
         total_size += size
         price = info.get("price", 0.5)

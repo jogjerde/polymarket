@@ -14,7 +14,7 @@ TRACKED_WALLETS = [
     "0x581d24e58039e1f569dacde9c288e028b51f2b06",  # Duratio
     "0x8c0b024c17831a0dde038547b7e791ae6a0d7aa5",  # IBOV200K
     "0x43372356634781eea88d61bbdd7824cdce958882",  # Anjun
-    "0xeffd76b6a4318d50c6f71a16b276c5b279445a86",  # Xero100
+    "0xeffd76b6a4318d50c6f71a16b276c5b279445a86",  # Xero100i
     "0x97e12cc7391a50e49042b44a2d4a0cef54c8017b",  # BigBlackGorilla
     "0x3212a515f3a02546830a6fb41f01470ccfff634e",  # beifengcc
     "0x583f70da7ee63bc1562e945f99c3407ffd622dab",  # account3333
@@ -31,6 +31,10 @@ TRACKED_WALLETS = [
     "0xd410ddf625bbfc1952eef4c5973b50acd9393a1b",  # Viacheslav92
     "0x5c85faa9e70e32ee227ce318906f81fc67185cd6",  # shiwanfute
     "0x95a9ff7399a389428a9a9deb6f416c635d2b4352",  # AtiradorFreestyle
+    "0x25e28169faea17421fcd4cc361f6436d1e449a09",  # xdd07070
+    "0xf5b36225c327d7080babdd8df1a0e44835e14155",  # balck
+    "0xcb516a0c8b8ba2e42ff5c123e2f624d6cce6359d",  # Bearpp
+    "0x750ca59fafbf837d939eca4cd241601a489c2fe3",  # Zzdl
 ]
 
 # Trader ratings (1-10 scale) - used for filtering and display
@@ -47,7 +51,8 @@ TRADER_RATINGS = {
     "Duratio": 2,
     "IBOV200K": 5,
     "Anjun": 4,
-    "Xero100": 3,
+    "Xero": 3,
+    "Xero100i": 3,
     "BigBlackGorilla": 8,
     "beifengcc": 8,
     "account3333": 8,
@@ -64,6 +69,10 @@ TRADER_RATINGS = {
     "Viacheslav92": 3,
     "shiwanfute": 2,
     "AtiradorFreestyle": 1,
+    "xdd07070": 10,
+    "balck": 1,
+    "Bearpp": 4,
+    "Zzdl": 3,
 }
 
 # API endpoints
@@ -108,7 +117,8 @@ MIN_BET_SIZE_PER_TRADER = {
     "Duratio": 0,
     "IBOV200K": 5,
     "Anjun": 5,
-    "Xero100": 8,
+    "Xero": 8,
+    "Xero100i": 8,
     "BigBlackGorilla": 14,
     "beifengcc": 6,
     "account3333": 4,
@@ -125,6 +135,10 @@ MIN_BET_SIZE_PER_TRADER = {
     "Viacheslav92": 50,
     "shiwanfute": 50,
     "AtiradorFreestyle": 50,
+    "xdd07070": 100,
+    "balck": 30,
+    "Bearpp": 50,
+    "Zzdl": 30,
 }
 
 # Volatility filter: remove markets where traders enter the same outcome

@@ -714,6 +714,16 @@ class TradeProcessor:
             }
             data["total_wallets"] = len(unique_traders)
 
+        # Re-apply minimum-wallet rule after trader-level filters.
+        # Without this, markets can shrink to 1 wallet and still pass through.
+        filtered_data = {
+            mid: data
+            for mid, data in filtered_data.items()
+            if data.get("total_wallets", 0) >= self.min_wallets
+        }
+        if not filtered_data:
+            return {}
+
 
         
         # Filter by trade age if MAX_MARKET_AGE_HOURS is set

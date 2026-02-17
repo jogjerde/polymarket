@@ -120,11 +120,6 @@ def main():
                 notifier.send_top_markets(results_df, top_n=4)
         else:
             print("\nNo LIVE markets found matching criteria.")
-            
-            # Notify about no results
-            if ENABLE_TELEGRAM_NOTIFICATIONS:
-                notifier = TelegramNotifier(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID)
-                notifier.send_message("⚠️ Ingen markets funnet i denne kjøringen.")
         
         api.close()
         logger.info("Analysis completed successfully")
